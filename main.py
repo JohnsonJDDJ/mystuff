@@ -139,9 +139,22 @@ class MyStuffs():
         self.pointing_into[to_name].append(from_name)
 
 
-    def remove_stuff(self, name: str) -> None:
+    def remove_stuff(self, name: str, verbose=True) -> None:
         self.stuffs.pop(name, None)
+
+        children = self.outgoing_from[name]
+        parents = self.pointing_into[name]
+        effected = set(children + parents)
+
+        if verbose and len(effected) > 0:
+            print(f"Effected units: {effected}.")
+
+        for child in children:
+            self.pointing_into[child].remove(name)
         self.outgoing_from.pop(name, None)
+
+        for parent in parents:
+            self.outgoing_from[parent].remove(name)
         self.pointing_into.pop(name, None)
 
     
