@@ -103,8 +103,8 @@ class MyStuffs():
 
     def __init__(self, state_dict: dict=None) -> None:
         self.stuffs = dict()
-        self.outgoing_from = defaultdict(set)
-        self.pointing_into = defaultdict(set)
+        self.outgoing_from = defaultdict(list)
+        self.pointing_into = defaultdict(list)
 
         if state_dict != None:
             if type(state_dict) != dict:
@@ -135,8 +135,8 @@ class MyStuffs():
             raise KeyError(f"Stuff with name {from_name} not found.")
         if to_name not in self.stuffs:
             raise KeyError(f"Stuff with name {to_name} not found.")
-        self.outgoing_from[from_name].add(to_name)
-        self.pointing_into[to_name].add(from_name)
+        self.outgoing_from[from_name].append(to_name)
+        self.pointing_into[to_name].append(from_name)
 
 
     def remove_stuff(self, name: str) -> None:
