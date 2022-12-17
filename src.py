@@ -227,6 +227,8 @@ class MyStuffs():
             raise KeyError(f"Stuff with name {from_name} not found.")
         if to_name not in self.stuffs:
             raise KeyError(f"Stuff with name {to_name} not found.")
+        if from_name == to_name:
+            raise ValueError("Cannot add dependence with itself.")
         self.outgoing_from[from_name].append(to_name)
         self.pointing_into[to_name].append(from_name)
 
@@ -242,6 +244,7 @@ class MyStuffs():
         self.outgoing_from[from_name].remove(to_name, None)
         self.pointing_into[to_name].remove(from_name, None)
 
+
     def remove_stuff(self, name: str, verbose=True) -> None:
         self.stuffs.pop(name, None)
 
@@ -254,6 +257,8 @@ class MyStuffs():
         for parent in parents:
             self.remove_dependence(parent, name)
         self.pointing_into.pop(name, None)
+
+        self.prune()
 
     # ==========================
     # ========== EDIT ==========
@@ -361,6 +366,24 @@ class MyStuffs():
 
         self.unsaved_changes = {}
 
+        self.prune()
+
+
+    def prune(self) -> None:
+        for k, v in self.outgoing_from.items():
+            if v == []:
+                self.outgoing_from.pop(k)
+
+        for k, v in self.pointing_into.items():
+            if v == []:
+                self.pointing_into.pop(k)
+
 
     def __repr__(self) -> str:
-        return "MyStuff: " + self.stuffs.__repr__()
+        repr = "MyStuff: "
+        for k in self.stuffs.keys():
+            repr += "<" + k + ">  "
+        repr += "\n"
+        for parent, children in self.outgoing_from.items():
+            repr += parent + " -> " + children.__repr__() + "\n"
+        return repr
