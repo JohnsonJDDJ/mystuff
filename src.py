@@ -370,14 +370,14 @@ class MyStuffs():
 
 
     def prune(self) -> None:
-        to_pop = {}
+        to_pop = set()
         for k, v in self.outgoing_from.items():
             if v == []:
                 to_pop.add(k)
         for k in to_pop:
             self.outgoing_from.pop(k)
 
-        to_pop = {}
+        to_pop = set()
         for k, v in self.pointing_into.items():
             if v == []:
                 to_pop.add(k)
