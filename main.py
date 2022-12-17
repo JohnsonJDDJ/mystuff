@@ -1,15 +1,19 @@
 from collections import defaultdict
+from copy import deepcopy
 from encrypt import encrypt
 
 class Stuff():
 
     def __init__(self, name: str, description: str="", 
                  state_dict: dict=None, encrypt_func=encrypt) -> None:
-        self.name = name
+        self.name = name.upper()
         self.description = description
         self.encrypt_func = encrypt_func
         self.attributes = dict()
         self.encrypted_attributes = dict()
+        self.all_categories = ("name", "description", 
+                               "encrypt_func", "attributes", 
+                               "encrypted_attributes")
 
         if state_dict != None:
             if type(state_dict) != dict:
@@ -96,6 +100,10 @@ class Stuff():
         if self.attributes:
             for k,v in self.attributes.items():
                 str += "\n - " + k + ": " + v
+        if self.encrypted_attributes:
+            str += "\n"+"ENCRYPTED"
+            for k,v in self.encrypted_attributes.items():
+                str += "\n - " + k + ": " + v
         return str
 
 
@@ -105,6 +113,7 @@ class MyStuffs():
         self.stuffs = dict()
         self.outgoing_from = defaultdict(list)
         self.pointing_into = defaultdict(list)
+        self.unsaved_changes = set()
 
         if state_dict != None:
             if type(state_dict) != dict:
@@ -117,46 +126,8 @@ class MyStuffs():
             self.outgoing_from = state_dict["outgoing_from"]
             self.pointing_into = state_dict["pointing_into"]
 
-    
-    def add_stuff(self, stuff:Stuff) -> None:
-        if type(stuff) != Stuff:
-            raise TypeError("Invalid type. Must be of type Stuff.")
-
-        name = stuff.get_name()
-
-        if name in self.stuffs:
-            raise KeyError(f"Duplicate name {stuff.get_name()}.")
-        else:
-            self.stuffs[name] = stuff
-
-
-    def add_dependence(self, from_name: str, to_name: str) -> None:
-        if from_name not in self.stuffs:
-            raise KeyError(f"Stuff with name {from_name} not found.")
-        if to_name not in self.stuffs:
-            raise KeyError(f"Stuff with name {to_name} not found.")
-        self.outgoing_from[from_name].append(to_name)
-        self.pointing_into[to_name].append(from_name)
-
-
-    def remove_stuff(self, name: str, verbose=True) -> None:
-        self.stuffs.pop(name, None)
-
-        children = self.outgoing_from[name]
-        parents = self.pointing_into[name]
-        effected = set(children + parents)
-
-        if verbose and len(effected) > 0:
-            print(f"Effected units: {effected}.")
-
-        for child in children:
-            self.pointing_into[child].remove(name)
-        self.outgoing_from.pop(name, None)
-
-        for parent in parents:
-            self.outgoing_from[parent].remove(name)
-        self.pointing_into.pop(name, None)
-
+    # =========================
+    # ========== GET ==========
     
     def get_stuff(self, name: str) -> Stuff:
         if name not in self.stuffs:
@@ -164,7 +135,7 @@ class MyStuffs():
         return self.stuffs[name]
 
 
-    def get_info(self, name: str) -> dict:
+    def get_stuff_info(self, name: str) -> dict:
         return self.get_stuff(name).get_info()
 
 
@@ -226,7 +197,130 @@ class MyStuffs():
         state_dict["outgoing_from"] = self.outgoing_from
         state_dict["pointing_into"] = self.pointing_into
         return state_dict
+    
+    # =========================
+    # ========== ADD ==========
 
+    def add_stuff(self, stuff:Stuff) -> None:
+        if type(stuff) != Stuff:
+            raise TypeError("Invalid type. Must be of type Stuff.")
+
+        name = stuff.get_name()
+
+        if name in self.stuffs:
+            raise KeyError(f"Duplicate name {stuff.get_name()}.")
+        else:
+            self.stuffs[name] = stuff
+
+
+    def add_dependence(self, from_name: str, to_name: str) -> None:
+        if from_name not in self.stuffs:
+            raise KeyError(f"Stuff with name {from_name} not found.")
+        if to_name not in self.stuffs:
+            raise KeyError(f"Stuff with name {to_name} not found.")
+        self.outgoing_from[from_name].append(to_name)
+        self.pointing_into[to_name].append(from_name)
+
+    # =========================
+    # ======== REMOVE =========
+    
+    def remove_dependence(self, from_name: str, to_name: str) -> None:
+        if from_name not in self.stuffs:
+            raise KeyError(f"Stuff with name {from_name} not found.")
+        if to_name not in self.stuffs:
+            raise KeyError(f"Stuff with name {to_name} not found.")
+        
+        self.outgoing_from[from_name].remove(to_name, None)
+        self.pointing_into[to_name].remove(from_name, None)
+
+    def remove_stuff(self, name: str, verbose=True) -> None:
+        self.stuffs.pop(name, None)
+
+        children = self.outgoing_from[name]
+        parents = self.pointing_into[name]
+        effected = set(children + parents)
+
+        if verbose and len(effected) > 0:
+            print(f"Effected units: {effected}.")
+
+        for child in children:
+            self.remove_dependence(name, child)
+        self.outgoing_from.pop(name, None)
+
+        for parent in parents:
+            self.remove_dependence(parent, name)
+        self.pointing_into.pop(name, None)
+
+    # ==========================
+    # ========== EDIT ==========
+
+    def edit_stuff(self, name: str, encryption_key: str=None, verbose=True, **kwargs) -> None:
+        '''
+        Edit attributes of the Stuff with name `name`. To delete an
+        attribute or an encrypted attribute, set the value of that
+        attribute to be `None`. 
+        '''
+        if name not in self.stuffs:
+            raise KeyError(f"Stuff wth name {name} not found.")
+        allowed_categories = Stuff().all_categories
+        for category in kwargs.key():
+            if category not in allowed_categories:
+                raise ValueError(f"Keyword argument {category} is not a valid field of a Stuff {allowed_categories}.")
+        
+        new_stuff = deepcopy(self.stuffs[name])
+        new_name = None
+
+        for category, content in kwargs.items():
+
+            if category == "name":
+                if type(content) != str:
+                    raise TypeError(f"Value for {category} should be a String.")
+                if content == name: continue
+                elif content != name and content in self.stuffs:
+                    raise KeyError(f"Duplicate name {content}.")
+
+                new_stuff.edit_name(content)
+                new_name = content
+
+            elif category == "description":
+                if type(content) != str:
+                    raise TypeError(f"Value for {category} should be a String.")
+                new_stuff.edit_description(content)
+
+            elif category == "encrypt_func":
+                print("Edits to the encryption function are not supported.")
+
+            elif category == "attributes":
+                if type(content) != dict:
+                    raise TypeError(f"Value for {category} should be a dictioncary.")
+                
+                for k, v in content:
+                    if v == None and k in new_stuff.get_attributes():
+                        new_stuff.remove_attribute(k)
+                    else:
+                        new_stuff.add_attribute(k, v)
+
+            elif category == "encrypted_attributes":
+                if type(content) != dict:
+                    raise TypeError(f"Value for {category} should be a dictioncary.")
+                for k, v in content:
+                    if v == None and k in new_stuff.get_secret_attributes():
+                        new_stuff.remove_secret_attribute(k)
+                    elif encryption_key == None:
+                        raise ValueError("Encryption key required.")
+                    else:
+                        new_stuff.add_secret_attribute(k, v, encryption_key)
+
+            else:
+                raise SystemError("An unexpected error occured.")
+        
+        self.unsaved_changes.add((name, new_name, new_stuff))
+        if verbose:
+            print("Unsaved changes. revert() to cancel, apply() to save.")
+            for item in self.unsaved_changes:
+                print(item)
+
+        
 
     def __repr__(self) -> str:
         return "MyStuff: " + self.stuffs.__repr__()
