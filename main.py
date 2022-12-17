@@ -51,10 +51,10 @@ class Stuff():
 
 
     def edit_name(self, new_name: str) -> None:
-        self.name = new_name
+        self.name = new_name.upper()
 
     
-    def edite_description(self, new_description: str) -> None:
+    def edit_description(self, new_description: str) -> None:
         self.description = new_description
 
 
@@ -101,7 +101,7 @@ class Stuff():
             for k,v in self.attributes.items():
                 str += "\n - " + k + ": " + v
         if self.encrypted_attributes:
-            str += "\n"+"ENCRYPTED"
+            str += "\n"+"!!Encrypted!!"
             for k,v in self.encrypted_attributes.items():
                 str += "\n - " + k + ": " + v
         return str
@@ -113,7 +113,7 @@ class MyStuffs():
         self.stuffs = dict()
         self.outgoing_from = defaultdict(list)
         self.pointing_into = defaultdict(list)
-        self.unsaved_changes = set()
+        self.unsaved_changes = dict()
 
         if state_dict != None:
             if type(state_dict) != dict:
@@ -180,6 +180,18 @@ class MyStuffs():
         return parents
 
 
+    def get_children_parents(self, name: str, verbose=False) -> tuple:
+        children = self.outgoing_from[name]
+        parents = self.pointing_into[name]
+
+        if verbose and len(children) > 0:
+            print(f"Effected children: {children}.")
+        if verbose and len(parents) > 0:
+            print(f"Effected parents: {parents}.")
+        
+        return children, parents
+
+
     def get_state_dict(self) -> dict:
 
         def expand_stuffs(dict: dict) -> dict:
@@ -236,12 +248,7 @@ class MyStuffs():
     def remove_stuff(self, name: str, verbose=True) -> None:
         self.stuffs.pop(name, None)
 
-        children = self.outgoing_from[name]
-        parents = self.pointing_into[name]
-        effected = set(children + parents)
-
-        if verbose and len(effected) > 0:
-            print(f"Effected units: {effected}.")
+        children, parents = self.get_children_parents(name, verbose=verbose)
 
         for child in children:
             self.remove_dependence(name, child)
@@ -254,37 +261,46 @@ class MyStuffs():
     # ==========================
     # ========== EDIT ==========
 
-    def edit_stuff(self, name: str, encryption_key: str=None, verbose=True, **kwargs) -> None:
+    def view_unsaved_changes(self) -> None:
+        print("Unsaved changes. revert() to cancel, apply() to save.")
+        for item in self.unsaved_changes.values():
+            print(item[1], "\n")
+
+    
+    def edit_stuff(self, sname: str, encryption_key: str=None, verbose=True, **kwargs) -> None:
         '''
         Edit attributes of the Stuff with name `name`. To delete an
         attribute or an encrypted attribute, set the value of that
         attribute to be `None`. 
         '''
-        if name not in self.stuffs:
-            raise KeyError(f"Stuff wth name {name} not found.")
-        allowed_categories = Stuff().all_categories
-        for category in kwargs.key():
+        if sname not in self.stuffs:
+            raise KeyError(f"Stuff wth name {sname} not found.")
+        allowed_categories = Stuff("").all_categories
+        for category in kwargs.keys():
             if category not in allowed_categories:
                 raise ValueError(f"Keyword argument {category} is not a valid field of a Stuff {allowed_categories}.")
         
-        new_stuff = deepcopy(self.stuffs[name])
+        new_stuff = deepcopy(self.stuffs[sname])
         new_name = None
+        new_edits = False
 
         for category, content in kwargs.items():
 
             if category == "name":
                 if type(content) != str:
                     raise TypeError(f"Value for {category} should be a String.")
-                if content == name: continue
-                elif content != name and content in self.stuffs:
+                if content == sname: continue
+                elif content != sname and content in self.stuffs:
                     raise KeyError(f"Duplicate name {content}.")
 
                 new_stuff.edit_name(content)
-                new_name = content
+                new_name = content.upper()
 
             elif category == "description":
                 if type(content) != str:
                     raise TypeError(f"Value for {category} should be a String.")
+                if content == self.stuffs[sname].get_description(): continue
+
                 new_stuff.edit_description(content)
 
             elif category == "encrypt_func":
@@ -293,7 +309,8 @@ class MyStuffs():
             elif category == "attributes":
                 if type(content) != dict:
                     raise TypeError(f"Value for {category} should be a dictioncary.")
-                
+                if content == self.stuffs[sname].get_attributes(): continue
+
                 for k, v in content:
                     if v == None and k in new_stuff.get_attributes():
                         new_stuff.remove_attribute(k)
@@ -303,7 +320,7 @@ class MyStuffs():
             elif category == "encrypted_attributes":
                 if type(content) != dict:
                     raise TypeError(f"Value for {category} should be a dictioncary.")
-                for k, v in content:
+                for k, v in content.items():
                     if v == None and k in new_stuff.get_secret_attributes():
                         new_stuff.remove_secret_attribute(k)
                     elif encryption_key == None:
@@ -313,14 +330,40 @@ class MyStuffs():
 
             else:
                 raise SystemError("An unexpected error occured.")
-        
-        self.unsaved_changes.add((name, new_name, new_stuff))
-        if verbose:
-            print("Unsaved changes. revert() to cancel, apply() to save.")
-            for item in self.unsaved_changes:
-                print(item)
 
+            new_edits = True
         
+        if new_edits:
+            self.unsaved_changes[sname] = (new_name, new_stuff)
+            if verbose: self.view_unsaved_changes()
+        else:
+            self.unsaved_changes.pop(sname, None)
+            if verbose: print("No new edits made.")
+                
+
+    def revert(self) -> None:
+        self.unsaved_changes = dict()
+
+    
+    def apply(self, verbose=True) -> None:
+        for name, (new_name, stuff) in self.unsaved_changes.items():
+            children, parents = self.get_children_parents(name, verbose=verbose)
+            if new_name != None:
+                for child in children:
+                    self.pointing_into[child].remove(name)
+                    self.pointing_into[child].append(new_name)
+                self.outgoing_from[new_name] = self.outgoing_from.pop(name)
+
+                for parent in parents:
+                    self.outgoing_from[parent].remove(name)
+                    self.outgoing_from[parent].append(new_name)
+                self.pointing_into[new_name] = self.pointing_into.pop(name)
+            
+            self.stuffs.pop(name)
+            self.stuffs[new_name if new_name else name] = stuff
+
+        self.unsaved_changes = {}
+
 
     def __repr__(self) -> str:
         return "MyStuff: " + self.stuffs.__repr__()
