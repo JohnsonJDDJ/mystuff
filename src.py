@@ -214,9 +214,6 @@ class MyStuffs():
     # ========== ADD ==========
 
     def add_stuff(self, stuff:Stuff) -> None:
-        if type(stuff) != Stuff:
-            raise TypeError("Invalid type. Must be of type Stuff.")
-
         name = stuff.get_name()
 
         if name in self.stuffs:
