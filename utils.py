@@ -26,17 +26,17 @@ def main_page_dialogue(mystuff: MyStuffs, file):
         =============================
         =======   Main Page   =======
         =============================
-         - [I]nspect MyStuff
-         - [Q]uit program
-         - Add a new [R]elation
-         - [RR] remove a relation
          - Add a new [S]tuff
-         - View/apply/revert [U]nsaved changes
-         - Or inspect a particular Stuff by typing its [NAME]
+         - Add a new [R]elation
+         - [I]nspect MyStuff
+         - Inspect a particular Stuff by typing its [NAME]
             - Includes inspecting its information (including
               encrypted information) and its relations with
               other Stuffs.
             - Actions include editing or removing this Stuff.
+         - [RR]emove relation
+         - View/apply/revert [U]nsaved changes
+         - [Q]uit program
 
 
         """
@@ -233,17 +233,16 @@ def stuff_main_page_dialogue(name, mystuff: MyStuffs, file):
          - Inspect [N]eighbors
          - Inspect [P]arents
          - [R]emove {name}
-         - Quit to [M]ain page (changes won't be lost).
-        (To apply changes, return to main page)
+         - [S]ave or revert edits
 
         """
     )
-    allowed_prompts = ["C", "E", "I", "N", "P", "R", "M"]
+    allowed_prompts = ["C", "E", "I", "N", "P", "R", "S"]
     prompt = input("Your input -> ")
     while prompt not in allowed_prompts:
         prompt = input("Try again. Your input -> ")
 
-    if prompt == "M": return "M"
+    if prompt == "S": return "U"
 
     return name, "S" + prompt 
 
