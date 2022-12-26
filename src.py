@@ -103,7 +103,7 @@ class Stuff():
         if self.encrypted_attributes:
             str += "\n"+"!!Encrypted!!"
             for k,v in self.encrypted_attributes.items():
-                str += "\n - " + k + ": " + v
+                str += "\n - " + k + ": <" + v + ">"
         return str
 
 
@@ -241,8 +241,15 @@ class MyStuffs():
         if to_name not in self.stuffs:
             raise KeyError(f"Stuff with name {to_name} not found.")
         
-        self.outgoing_from[from_name].remove(to_name, None)
-        self.pointing_into[to_name].remove(from_name, None)
+        try:
+            self.outgoing_from[from_name].remove(to_name)
+        except ValueError:
+            pass  # do nothing!
+
+        try:
+            self.pointing_into[to_name].remove(from_name)
+        except ValueError:
+            pass  # do nothing!
 
 
     def remove_stuff(self, name: str, verbose=True) -> None:
@@ -313,7 +320,7 @@ class MyStuffs():
                     raise TypeError(f"Value for {category} should be a dictioncary.")
                 if content == self.stuffs[sname].get_attributes(): continue
 
-                for k, v in content:
+                for k, v in content.items():
                     if v == None and k in new_stuff.get_attributes():
                         new_stuff.remove_attribute(k)
                     else:
